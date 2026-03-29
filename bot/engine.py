@@ -90,13 +90,30 @@ class TradingBot:
         self.stop()
 
     def _tick(self) -> None:
-        candles_15m = self._fetch_candles(self.cfg.signal_interval, self.cfg.signal_candle_limit)
-        candles_1h = self._fetch_candles(self.cfg.trend_interval, self.cfg.trend_candle_limit)
-        if candles_15m.empty or candles_1h.empty:
+        candles_15m_raw = self._fetch_candles(self.cfg.signal_interval, self.cfg.signal_candle_limit)
+        candles_1h_raw = self._fetch_candles(self.cfg.trend_interval, self.cfg.trend_candle_limit)
+        if candles_15m_raw.empty or candles_1h_raw.empty:
             self._log("WARNING", "No candle data available")
             return
 
-        last_price = self._safe_last_price(float(candles_15m.iloc[-1]["close"]))
+        candles_15m, dropped_open_15m = self._exclude_forming_last_bar(candles_15m_raw, self.cfg.signal_interval)
+        candles_1h, dropped_open_1h = self._exclude_forming_last_bar(candles_1h_raw, self.cfg.trend_interval)
+        if candles_15m.empty or candles_1h.empty:
+            self._log("WARNING", "No closed candle data available after trimming forming bars")
+            return
+
+        self._log(
+            "INFO",
+            (
+                f"Evaluating closed candles: "
+                f"15m_ts={int(candles_15m.iloc[-1]['ts'])} "
+                f"1h_ts={int(candles_1h.iloc[-1]['ts'])} "
+                f"dropped_open_15m={dropped_open_15m} "
+                f"dropped_open_1h={dropped_open_1h}"
+            ),
+        )
+
+        last_price = self._safe_last_price(float(candles_15m_raw.iloc[-1]["close"]))
         rules = self.exchange.get_instrument_rules(self.cfg.symbol)
 
         open_trade = self.db.get_open_trade(self.cfg.symbol)
@@ -619,6 +636,24 @@ class TradingBot:
 
         cached = self.db.get_cached_candles(self.cfg.symbol, interval, limit)
         return cached
+
+    def _exclude_forming_last_bar(self, candles, interval: str):
+        if candles.empty:
+            return candles, False
+
+        try:
+            interval_min = int(interval)
+        except ValueError:
+            return candles, False
+
+        now_ms = int(datetime.utcnow().timestamp() * 1000)
+        last_ts = int(candles.iloc[-1]["ts"])
+        interval_ms = interval_min * 60_000
+        is_forming = (last_ts + interval_ms) > now_ms
+
+        if is_forming and len(candles) > 1:
+            return candles.iloc[:-1].reset_index(drop=True), True
+        return candles, False
 
     def _safe_last_price(self, fallback_close: float | None) -> float:
         try:
