@@ -33,7 +33,7 @@ def parse_args() -> argparse.Namespace:
     p_run.add_argument(
         "--paper",
         action="store_true",
-        help="Run paper/live-shadow mode (no real orders, RF filter forced at 0.65)",
+        help="Run paper/live-shadow mode (no real orders, RF filter forced at 0.50)",
     )
 
     p_bt = sub.add_parser("backtest", help="Run backtest with the same strategy")
@@ -169,7 +169,7 @@ def run_bot(cfg: BotConfig, once: bool, paper: bool = False) -> None:
             cfg,
             dry_run=True,
             ai_filter_enabled=True,
-            ai_score_threshold=0.65,
+            ai_score_threshold=0.50,
             ai_model_path=paper_model_path,
         )
         model_path = Path(cfg.ai_model_path)

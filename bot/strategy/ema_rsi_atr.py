@@ -40,31 +40,38 @@ class BreakoutMomentumStrategy:
         last15 = s15.iloc[-1]
         last1h = t1h.iloc[-1]
 
-        vol_ok = float(last15["volume"]) > float(last15["vol_sma20"]) * 1.0
         adx_ok = float(last1h["adx"]) > self.cfg.adx_min
+
+        # Donchian with 0.2% tolerance — near-breakout also counts
+        donchian_upper_val = float(last15["donchian_upper"])
+        donchian_lower_val = float(last15["donchian_lower"])
+        long_breakout = float(last15["high"]) >= donchian_upper_val * 0.998
+        short_breakout = float(last15["low"]) <= donchian_lower_val * 1.002
 
         long_conditions = [
             float(last1h["ema50"]) > float(last1h["ema200"]),
             adx_ok,
-            float(last15["high"]) >= float(last15["donchian_upper"]),
+            long_breakout,
             float(last15["ema20"]) > float(last15["ema50"]),
-            vol_ok,
         ]
 
         short_conditions = [
             float(last1h["ema50"]) < float(last1h["ema200"]),
             adx_ok,
-            float(last15["low"]) <= float(last15["donchian_lower"]),
+            short_breakout,
             float(last15["ema20"]) < float(last15["ema50"]),
-            vol_ok,
         ]
 
         atr_value = float(last15["atr"])
         if all(long_conditions) and atr_value > 0:
-            return StrategySignal(side="LONG", reason="breakout_long", atr=atr_value)
+            vol_ok = float(last15["volume"]) > float(last15["vol_sma20"])
+            reason = "breakout_long" if vol_ok else "breakout_long_weak_volume"
+            return StrategySignal(side="LONG", reason=reason, atr=atr_value)
 
         if all(short_conditions) and atr_value > 0:
-            return StrategySignal(side="SHORT", reason="breakout_short", atr=atr_value)
+            vol_ok = float(last15["volume"]) > float(last15["vol_sma20"])
+            reason = "breakout_short" if vol_ok else "breakout_short_weak_volume"
+            return StrategySignal(side="SHORT", reason=reason, atr=atr_value)
 
         return StrategySignal(side="NONE", reason="no_signal", atr=atr_value if atr_value > 0 else 0.0)
 

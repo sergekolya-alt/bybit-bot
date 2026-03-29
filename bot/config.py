@@ -96,7 +96,7 @@ class BotConfig:
             trend_ema_fast=int(os.getenv("TREND_EMA_FAST", "50")),
             trend_ema_slow=int(os.getenv("TREND_EMA_SLOW", "200")),
             adx_period=int(os.getenv("ADX_PERIOD", "14")),
-            adx_min=float(os.getenv("ADX_MIN", "22")),
+            adx_min=float(os.getenv("ADX_MIN", "18")),
             volume_spike_mult=float(os.getenv("VOLUME_SPIKE_MULT", "1.5")),
             atr_stop_mult=float(os.getenv("ATR_STOP_MULT", "1.8")),
             tp1_r=float(os.getenv("TP1_R", "1.5")),
@@ -111,7 +111,7 @@ class BotConfig:
             backtest_trades_csv=os.getenv("BACKTEST_TRADES_CSV", "backtest_trades.csv").strip(),
             ai_filter_enabled=_env_bool("AI_FILTER_ENABLED", False),
             ai_model_path=os.getenv("AI_MODEL_PATH", "models/ai_signal_filter.json").strip(),
-            ai_score_threshold=float(os.getenv("AI_SCORE_THRESHOLD", "0.55")),
+            ai_score_threshold=float(os.getenv("AI_SCORE_THRESHOLD", "0.50")),
         )
 
         cfg.validate()
