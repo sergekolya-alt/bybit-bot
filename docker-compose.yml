@@ -1,0 +1,24 @@
+services:
+  bot:
+    build: .
+    container_name: bybit-bot
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    command: ["python", "main.py", "run-bot"]
+    restart: unless-stopped
+
+  health:
+    build: .
+    container_name: bybit-bot-health
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    command: ["python", "main.py", "healthcheck", "--host", "0.0.0.0", "--port", "8080"]
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    depends_on:
+      - bot

@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+*.db
+*.sqlite3
+*.log
+.DS_Store
+ai_signal_dataset_*.csv
+sample_15m.csv
+sample_1h.csv
+sample_backtest_trades.csv
+backtest_trades.csv
+bot.sqlite3
+models/*.joblib
