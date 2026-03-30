@@ -168,19 +168,19 @@ def run_bot(cfg: BotConfig, once: bool, paper: bool = False) -> None:
         cfg = replace(
             cfg,
             dry_run=True,
-            ai_filter_enabled=True,
-            ai_score_threshold=0.50,
             ai_model_path=paper_model_path,
         )
-        model_path = Path(cfg.ai_model_path)
-        if not model_path.exists():
-            raise ValueError(
-                (
-                    "Paper mode requires a trained AI model file. "
-                    f"Not found: {cfg.ai_model_path}. "
-                    "Set AI_MODEL_PATH to your trained RandomForest .joblib file if needed."
+        if cfg.ai_filter_enabled:
+            model_path = Path(cfg.ai_model_path)
+            if not model_path.exists():
+                raise ValueError(
+                    (
+                        "Paper mode: AI_FILTER_ENABLED=true but model file not found: "
+                        f"{cfg.ai_model_path}. "
+                        "Set AI_MODEL_PATH to your trained RandomForest .joblib file, "
+                        "or set AI_FILTER_ENABLED=false to disable the filter."
+                    )
                 )
-            )
 
     bot = TradingBot(cfg, paper_mode=paper)
     bot.run(once=once)
