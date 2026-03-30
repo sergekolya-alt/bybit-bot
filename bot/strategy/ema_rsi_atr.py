@@ -42,11 +42,11 @@ class BreakoutMomentumStrategy:
 
         adx_ok = float(last1h["adx"]) > self.cfg.adx_min
 
-        # Donchian with 0.2% tolerance — near-breakout also counts
+        # Donchian with 0.5% tolerance — near-breakout also counts
         donchian_upper_val = float(last15["donchian_upper"])
         donchian_lower_val = float(last15["donchian_lower"])
-        long_breakout = float(last15["high"]) >= donchian_upper_val * 0.998
-        short_breakout = float(last15["low"]) <= donchian_lower_val * 1.002
+        long_breakout = float(last15["high"]) >= donchian_upper_val * 0.995
+        short_breakout = float(last15["low"]) <= donchian_lower_val * 1.005
 
         long_conditions = [
             float(last1h["ema50"]) > float(last1h["ema200"]),

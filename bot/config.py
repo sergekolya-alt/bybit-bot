@@ -96,7 +96,7 @@ class BotConfig:
             trend_ema_fast=int(os.getenv("TREND_EMA_FAST", "50")),
             trend_ema_slow=int(os.getenv("TREND_EMA_SLOW", "200")),
             adx_period=int(os.getenv("ADX_PERIOD", "14")),
-            adx_min=float(os.getenv("ADX_MIN", "18")),
+            adx_min=float(os.getenv("ADX_MIN", "15")),
             volume_spike_mult=float(os.getenv("VOLUME_SPIKE_MULT", "1.5")),
             atr_stop_mult=float(os.getenv("ATR_STOP_MULT", "1.8")),
             tp1_r=float(os.getenv("TP1_R", "1.5")),
