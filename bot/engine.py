@@ -549,11 +549,9 @@ class TradingBot:
         """
         Return (tp2_price, reason_str).
 
-        For LONG: use nearest_resistance mid if it's above entry by at least
-        min_sr_tp_distance_pct and at least as far as tp2_fallback.
-        For SHORT: use nearest_support mid if it's below entry by at least
-        min_sr_tp_distance_pct and at least as far (i.e. lower) as tp2_fallback.
-        Falls back to ATR-based tp2_fallback otherwise.
+        SR is the primary target: use nearest_resistance (LONG) or nearest_support
+        (SHORT) if the zone mid is beyond min_sr_tp_distance_pct from entry.
+        ATR-based tp2_fallback is used only when no valid SR zone exists.
         """
         if context is None:
             return tp2_fallback, "ATR-based (no context)"
@@ -567,8 +565,6 @@ class TradingBot:
             sr_price = zone.mid
             if sr_price <= entry_price + min_dist:
                 return tp2_fallback, f"ATR-based (SR resistance {sr_price:.2f} too close to entry)"
-            if sr_price < tp2_fallback:
-                return tp2_fallback, f"ATR-based (SR resistance {sr_price:.2f} < ATR TP2 {tp2_fallback:.2f})"
             rounded = self.exchange.round_price(sr_price, tick_size, mode="down")
             return rounded, f"SR-based from nearest resistance {zone.zone_low:.2f}-{zone.zone_high:.2f} (mid={sr_price:.2f})"
         else:
@@ -578,8 +574,6 @@ class TradingBot:
             sr_price = zone.mid
             if sr_price >= entry_price - min_dist:
                 return tp2_fallback, f"ATR-based (SR support {sr_price:.2f} too close to entry)"
-            if sr_price > tp2_fallback:
-                return tp2_fallback, f"ATR-based (SR support {sr_price:.2f} > ATR TP2 {tp2_fallback:.2f})"
             rounded = self.exchange.round_price(sr_price, tick_size, mode="up")
             return rounded, f"SR-based from nearest support {zone.zone_low:.2f}-{zone.zone_high:.2f} (mid={sr_price:.2f})"
 
