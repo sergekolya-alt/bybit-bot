@@ -49,6 +49,13 @@ class BotConfig:
     mean_reversion_adx_max: float
     volume_spike_mult: float
 
+    range_lookback_candles: int
+    mr_edge_zone_pct: float
+    sr_swing_window: int
+    sr_cluster_tolerance_pct: float
+    sr_min_touches: int
+    sr_max_levels: int
+
     atr_stop_mult: float
     tp1_r: float
     tp2_r: float
@@ -100,6 +107,12 @@ class BotConfig:
             adx_min=float(os.getenv("ADX_MIN", "15")),
             mean_reversion_adx_max=float(os.getenv("MEAN_REVERSION_ADX_MAX", "20")),
             volume_spike_mult=float(os.getenv("VOLUME_SPIKE_MULT", "1.5")),
+            range_lookback_candles=int(os.getenv("RANGE_LOOKBACK_CANDLES", "50")),
+            mr_edge_zone_pct=float(os.getenv("MR_EDGE_ZONE_PCT", "0.20")),
+            sr_swing_window=int(os.getenv("SR_SWING_WINDOW", "5")),
+            sr_cluster_tolerance_pct=float(os.getenv("SR_CLUSTER_TOLERANCE_PCT", "0.005")),
+            sr_min_touches=int(os.getenv("SR_MIN_TOUCHES", "2")),
+            sr_max_levels=int(os.getenv("SR_MAX_LEVELS", "10")),
             atr_stop_mult=float(os.getenv("ATR_STOP_MULT", "1.8")),
             tp1_r=float(os.getenv("TP1_R", "1.5")),
             tp2_r=float(os.getenv("TP2_R", "3.0")),
@@ -167,6 +180,15 @@ class BotConfig:
 
         if self.mean_reversion_adx_max <= self.adx_min:
             raise ValueError("MEAN_REVERSION_ADX_MAX should be greater than ADX_MIN.")
+
+        if self.mr_edge_zone_pct <= 0 or self.mr_edge_zone_pct >= 0.5:
+            raise ValueError("MR_EDGE_ZONE_PCT must be in (0, 0.5).")
+
+        if self.range_lookback_candles < 20:
+            raise ValueError("RANGE_LOOKBACK_CANDLES must be >= 20.")
+
+        if self.sr_swing_window < 2:
+            raise ValueError("SR_SWING_WINDOW must be >= 2.")
 
         if self.ai_score_threshold < 0 or self.ai_score_threshold > 1:
             raise ValueError("AI_SCORE_THRESHOLD must be in [0, 1].")

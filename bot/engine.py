@@ -8,6 +8,7 @@ from types import FrameType
 
 from .ai_filter import AISignalFilter, build_runtime_feature_vector
 from .config import BotConfig
+from .signal_context import MarketContextBuilder, SignalContext
 from .db import Database
 from .exchange import BybitClient, InstrumentRules
 from .models import FuturesPosition, Side
@@ -133,7 +134,9 @@ class TradingBot:
             self._log("INFO", "Trading resumed after halt")
             self.notifier.send("[BOT] Trading resumed")
 
-        signal_out = self.strategy.entry_signal(candles_15m, candles_1h)
+        context = self._build_market_context(candles_15m, candles_1h, last_price)
+        self._log_market_context(context, last_price)
+        signal_out = self.strategy.entry_signal(candles_15m, candles_1h, context)
         if signal_out.side == "NONE":
             self._pending_signal_side = "NONE"
             self._log("INFO", f"No entry signal: {signal_out.reason}")
@@ -682,6 +685,41 @@ class TradingBot:
         self._halt_reason = reason
         self._log("WARNING", f"Trading halted: {reason}")
         self.notifier.send(f"[BOT] Trading halted: {reason}")
+
+    def _build_market_context(
+        self,
+        candles_15m,
+        candles_1h,
+        last_price: float,
+    ) -> SignalContext | None:
+        try:
+            return MarketContextBuilder(self.cfg).build(candles_15m, candles_1h, last_price)
+        except Exception as exc:  # noqa: BLE001
+            self._log("WARNING", f"Market context build failed: {exc}")
+            return None
+
+    def _log_market_context(self, context: SignalContext | None, last_price: float) -> None:
+        if context is None:
+            return
+        self._log(
+            "INFO",
+            f"Range detected: low={context.range_low:.2f} mid={context.range_mid:.2f} high={context.range_high:.2f}",
+        )
+        self._log(
+            "INFO",
+            f"Price location: {context.price_location} (price={last_price:.2f})",
+        )
+        ns = context.nearest_support
+        nr = context.nearest_resistance
+        ns_str = f"{ns.zone_low:.2f}-{ns.zone_high:.2f} (touches={ns.touch_count})" if ns else "none"
+        nr_str = f"{nr.zone_low:.2f}-{nr.zone_high:.2f} (touches={nr.touch_count})" if nr else "none"
+        self._log(
+            "INFO",
+            f"SR zones found: {context.sr_zone_count} | nearest_support={ns_str} | nearest_resistance={nr_str}",
+        )
+        long_str = "allowed" if context.mr_long_allowed else "rejected (not lower_edge)"
+        short_str = "allowed" if context.mr_short_allowed else "rejected (not upper_edge)"
+        self._log("INFO", f"MR long: {long_str} | MR short: {short_str}")
 
     def _log(self, level: str, message: str, data: dict | None = None) -> None:
         self.db.log_event(level, message, data)

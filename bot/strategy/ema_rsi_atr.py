@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pandas as pd
 
 from ..config import BotConfig
 from ..models import Side, StrategySignal
 from .indicators import adx, atr, donchian_lower, donchian_upper, ema, sma
+
+if TYPE_CHECKING:
+    from ..signal_context import SignalContext
 
 
 class BreakoutMomentumStrategy:
@@ -28,7 +33,12 @@ class BreakoutMomentumStrategy:
         df["adx"] = adx(df["high"], df["low"], df["close"], self.cfg.adx_period)
         return df
 
-    def entry_signal(self, candles_15m: pd.DataFrame, candles_1h: pd.DataFrame) -> StrategySignal:
+    def entry_signal(
+        self,
+        candles_15m: pd.DataFrame,
+        candles_1h: pd.DataFrame,
+        context: "SignalContext | None" = None,
+    ) -> StrategySignal:
         min_signal = max(self.cfg.signal_ema_slow, self.cfg.donchian_period, self.cfg.volume_sma_period) + 3
         min_trend = max(self.cfg.trend_ema_slow, self.cfg.adx_period) + 3
         if len(candles_15m) < min_signal or len(candles_1h) < min_trend:
@@ -78,17 +88,28 @@ class BreakoutMomentumStrategy:
 
         # --- Mean reversion regime (ranging market) ---
         if in_mean_reversion_regime and atr_value > 0:
+            # Market structure filter: only trade at range edges, not in the middle
+            mr_long_ok = context.mr_long_allowed if context is not None else True
+            mr_short_ok = context.mr_short_allowed if context is not None else True
+
+            close_15 = float(last15["close"])
+            open_15 = float(last15["open"])
+            low_15 = float(last15["low"])
+            high_15 = float(last15["high"])
+
             mr_long_conditions = [
-                ema50_1h > ema200_1h,                           # 1h uptrend
-                float(last15["low"]) < ema20_15,                # pulled back below 15m EMA20
-                float(last15["close"]) > ema50_15,              # still above 15m EMA50 (support holds)
-                float(last15["close"]) > float(last15["open"]), # bullish candle (bounce forming)
+                mr_long_ok,                    # price in lower edge zone
+                ema50_1h > ema200_1h,          # 1h uptrend
+                low_15 < ema20_15,             # pulled back below 15m EMA20
+                close_15 > ema50_15,           # still above 15m EMA50 (support holds)
+                close_15 > open_15,            # bullish candle (bounce forming)
             ]
             mr_short_conditions = [
-                ema50_1h < ema200_1h,                           # 1h downtrend
-                float(last15["high"]) > ema20_15,               # bounced above 15m EMA20
-                float(last15["close"]) < ema50_15,              # still below 15m EMA50 (resistance holds)
-                float(last15["close"]) < float(last15["open"]), # bearish candle (rejection forming)
+                mr_short_ok,                   # price in upper edge zone
+                ema50_1h < ema200_1h,          # 1h downtrend
+                high_15 > ema20_15,            # bounced above 15m EMA20
+                close_15 < ema50_15,           # still below 15m EMA50 (resistance holds)
+                close_15 < open_15,            # bearish candle (rejection forming)
             ]
 
             if all(mr_long_conditions):
@@ -96,6 +117,16 @@ class BreakoutMomentumStrategy:
 
             if all(mr_short_conditions):
                 return StrategySignal(side="SHORT", reason="mean_reversion_short", atr=atr_value)
+
+            # Emit explicit rejection reason when context was the sole blocker
+            if context is not None:
+                other_long = [ema50_1h > ema200_1h, low_15 < ema20_15, close_15 > ema50_15, close_15 > open_15]
+                if not mr_long_ok and all(other_long):
+                    return StrategySignal(side="NONE", reason="mr_long_rejected_middle_zone", atr=atr_value)
+
+                other_short = [ema50_1h < ema200_1h, high_15 > ema20_15, close_15 < ema50_15, close_15 < open_15]
+                if not mr_short_ok and all(other_short):
+                    return StrategySignal(side="NONE", reason="mr_short_rejected_middle_zone", atr=atr_value)
 
         return StrategySignal(side="NONE", reason="no_signal", atr=atr_value if atr_value > 0 else 0.0)
 
