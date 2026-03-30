@@ -55,6 +55,7 @@ class BotConfig:
     sr_cluster_tolerance_pct: float
     sr_min_touches: int
     sr_max_levels: int
+    min_sr_tp_distance_pct: float
 
     atr_stop_mult: float
     tp1_r: float
@@ -113,6 +114,7 @@ class BotConfig:
             sr_cluster_tolerance_pct=float(os.getenv("SR_CLUSTER_TOLERANCE_PCT", "0.005")),
             sr_min_touches=int(os.getenv("SR_MIN_TOUCHES", "2")),
             sr_max_levels=int(os.getenv("SR_MAX_LEVELS", "10")),
+            min_sr_tp_distance_pct=float(os.getenv("MIN_SR_TP_DISTANCE_PCT", "0.005")),
             atr_stop_mult=float(os.getenv("ATR_STOP_MULT", "1.8")),
             tp1_r=float(os.getenv("TP1_R", "1.5")),
             tp2_r=float(os.getenv("TP2_R", "3.0")),
@@ -189,6 +191,9 @@ class BotConfig:
 
         if self.sr_swing_window < 2:
             raise ValueError("SR_SWING_WINDOW must be >= 2.")
+
+        if self.min_sr_tp_distance_pct <= 0 or self.min_sr_tp_distance_pct >= 0.1:
+            raise ValueError("MIN_SR_TP_DISTANCE_PCT must be in (0, 0.1).")
 
         if self.ai_score_threshold < 0 or self.ai_score_threshold > 1:
             raise ValueError("AI_SCORE_THRESHOLD must be in [0, 1].")

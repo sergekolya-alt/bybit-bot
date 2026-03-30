@@ -149,12 +149,13 @@ class TradingBot:
 
         self._pending_signal_side = "NONE"
 
-        stop_loss, tp1_price, tp2_price, _ = self._build_levels(
+        stop_loss, tp1_price, tp2_atr_candidate, _ = self._build_levels(
             side=signal_out.side,
             entry_price=last_price,
             atr_value=signal_out.atr,
             tick_size=rules.tick_size,
         )
+        tp2_price, _ = self._resolve_sr_tp2(signal_out.side, last_price, tp2_atr_candidate, context, rules.tick_size)
 
         score: float | None = None
         allow_signal = True
@@ -261,7 +262,7 @@ class TradingBot:
                 )
             )
 
-        self._open_new_trade(signal_out.side, signal_out.atr, last_price, rules, ai_score=score)
+        self._open_new_trade(signal_out.side, signal_out.atr, last_price, rules, ai_score=score, context=context)
 
     def _open_new_trade(
         self,
@@ -270,17 +271,20 @@ class TradingBot:
         entry_price: float,
         rules: InstrumentRules,
         ai_score: float | None = None,
+        context: "SignalContext | None" = None,
     ) -> None:
         if atr_value <= 0:
             self._log("WARNING", "ATR is non-positive, cannot open trade")
             return
 
-        stop_loss, tp1_price, tp2_price, risk_per_unit = self._build_levels(
+        stop_loss, tp1_price, tp2_atr, risk_per_unit = self._build_levels(
             side=side,
             entry_price=entry_price,
             atr_value=atr_value,
             tick_size=rules.tick_size,
         )
+        tp2_price, tp2_reason = self._resolve_sr_tp2(side, entry_price, tp2_atr, context, rules.tick_size)
+        self._log("INFO", f"TP2 selection: {tp2_reason}")
 
         equity = self._equity_estimate()
         qty = self.risk.calculate_position_size(
@@ -533,6 +537,51 @@ class TradingBot:
         if pos.side == "LONG":
             return price >= pos.tp2_price
         return price <= pos.tp2_price
+
+    def _resolve_sr_tp2(
+        self,
+        side: str,
+        entry_price: float,
+        tp2_fallback: float,
+        context: "SignalContext | None",
+        tick_size: float,
+    ) -> tuple[float, str]:
+        """
+        Return (tp2_price, reason_str).
+
+        For LONG: use nearest_resistance mid if it's above entry by at least
+        min_sr_tp_distance_pct and at least as far as tp2_fallback.
+        For SHORT: use nearest_support mid if it's below entry by at least
+        min_sr_tp_distance_pct and at least as far (i.e. lower) as tp2_fallback.
+        Falls back to ATR-based tp2_fallback otherwise.
+        """
+        if context is None:
+            return tp2_fallback, "ATR-based (no context)"
+
+        min_dist = entry_price * self.cfg.min_sr_tp_distance_pct
+
+        if side == "LONG":
+            zone = context.nearest_resistance
+            if zone is None:
+                return tp2_fallback, "ATR-based (no resistance zone)"
+            sr_price = zone.mid
+            if sr_price <= entry_price + min_dist:
+                return tp2_fallback, f"ATR-based (SR resistance {sr_price:.2f} too close to entry)"
+            if sr_price < tp2_fallback:
+                return tp2_fallback, f"ATR-based (SR resistance {sr_price:.2f} < ATR TP2 {tp2_fallback:.2f})"
+            rounded = self.exchange.round_price(sr_price, tick_size, mode="down")
+            return rounded, f"SR-based from nearest resistance {zone.zone_low:.2f}-{zone.zone_high:.2f} (mid={sr_price:.2f})"
+        else:
+            zone = context.nearest_support
+            if zone is None:
+                return tp2_fallback, "ATR-based (no support zone)"
+            sr_price = zone.mid
+            if sr_price >= entry_price - min_dist:
+                return tp2_fallback, f"ATR-based (SR support {sr_price:.2f} too close to entry)"
+            if sr_price > tp2_fallback:
+                return tp2_fallback, f"ATR-based (SR support {sr_price:.2f} > ATR TP2 {tp2_fallback:.2f})"
+            rounded = self.exchange.round_price(sr_price, tick_size, mode="up")
+            return rounded, f"SR-based from nearest support {zone.zone_low:.2f}-{zone.zone_high:.2f} (mid={sr_price:.2f})"
 
     def _build_levels(self, side: str, entry_price: float, atr_value: float, tick_size: float) -> tuple[float, float, float, float]:
         risk_per_unit = atr_value * self.cfg.atr_stop_mult
