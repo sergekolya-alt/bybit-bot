@@ -40,7 +40,15 @@ class BreakoutMomentumStrategy:
         last15 = s15.iloc[-1]
         last1h = t1h.iloc[-1]
 
-        adx_ok = float(last1h["adx"]) > self.cfg.adx_min
+        adx_value = float(last1h["adx"])
+        in_breakout_regime = adx_value > self.cfg.adx_min
+        in_mean_reversion_regime = adx_value < self.cfg.mean_reversion_adx_max
+
+        ema20_15 = float(last15["ema20"])
+        ema50_15 = float(last15["ema50"])
+        ema50_1h = float(last1h["ema50"])
+        ema200_1h = float(last1h["ema200"])
+        atr_value = float(last15["atr"])
 
         # Donchian with 0.5% tolerance — near-breakout also counts
         donchian_upper_val = float(last15["donchian_upper"])
@@ -48,30 +56,46 @@ class BreakoutMomentumStrategy:
         long_breakout = float(last15["high"]) >= donchian_upper_val * 0.995
         short_breakout = float(last15["low"]) <= donchian_lower_val * 1.005
 
+        # --- Breakout regime (priority) ---
         long_conditions = [
-            float(last1h["ema50"]) > float(last1h["ema200"]),
-            adx_ok,
+            ema50_1h > ema200_1h,
+            in_breakout_regime,
             long_breakout,
-            float(last15["ema20"]) > float(last15["ema50"]),
+            ema20_15 > ema50_15,
         ]
-
         short_conditions = [
-            float(last1h["ema50"]) < float(last1h["ema200"]),
-            adx_ok,
+            ema50_1h < ema200_1h,
+            in_breakout_regime,
             short_breakout,
-            float(last15["ema20"]) < float(last15["ema50"]),
+            ema20_15 < ema50_15,
         ]
 
-        atr_value = float(last15["atr"])
         if all(long_conditions) and atr_value > 0:
-            vol_ok = float(last15["volume"]) > float(last15["vol_sma20"])
-            reason = "breakout_long" if vol_ok else "breakout_long_weak_volume"
-            return StrategySignal(side="LONG", reason=reason, atr=atr_value)
+            return StrategySignal(side="LONG", reason="breakout_long", atr=atr_value)
 
         if all(short_conditions) and atr_value > 0:
-            vol_ok = float(last15["volume"]) > float(last15["vol_sma20"])
-            reason = "breakout_short" if vol_ok else "breakout_short_weak_volume"
-            return StrategySignal(side="SHORT", reason=reason, atr=atr_value)
+            return StrategySignal(side="SHORT", reason="breakout_short", atr=atr_value)
+
+        # --- Mean reversion regime (ranging market) ---
+        if in_mean_reversion_regime and atr_value > 0:
+            mr_long_conditions = [
+                ema50_1h > ema200_1h,                           # 1h uptrend
+                float(last15["low"]) < ema20_15,                # pulled back below 15m EMA20
+                float(last15["close"]) > ema50_15,              # still above 15m EMA50 (support holds)
+                float(last15["close"]) > float(last15["open"]), # bullish candle (bounce forming)
+            ]
+            mr_short_conditions = [
+                ema50_1h < ema200_1h,                           # 1h downtrend
+                float(last15["high"]) > ema20_15,               # bounced above 15m EMA20
+                float(last15["close"]) < ema50_15,              # still below 15m EMA50 (resistance holds)
+                float(last15["close"]) < float(last15["open"]), # bearish candle (rejection forming)
+            ]
+
+            if all(mr_long_conditions):
+                return StrategySignal(side="LONG", reason="mean_reversion_long", atr=atr_value)
+
+            if all(mr_short_conditions):
+                return StrategySignal(side="SHORT", reason="mean_reversion_short", atr=atr_value)
 
         return StrategySignal(side="NONE", reason="no_signal", atr=atr_value if atr_value > 0 else 0.0)
 

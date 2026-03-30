@@ -46,6 +46,7 @@ class BotConfig:
     trend_ema_slow: int
     adx_period: int
     adx_min: float
+    mean_reversion_adx_max: float
     volume_spike_mult: float
 
     atr_stop_mult: float
@@ -97,6 +98,7 @@ class BotConfig:
             trend_ema_slow=int(os.getenv("TREND_EMA_SLOW", "200")),
             adx_period=int(os.getenv("ADX_PERIOD", "14")),
             adx_min=float(os.getenv("ADX_MIN", "15")),
+            mean_reversion_adx_max=float(os.getenv("MEAN_REVERSION_ADX_MAX", "20")),
             volume_spike_mult=float(os.getenv("VOLUME_SPIKE_MULT", "1.5")),
             atr_stop_mult=float(os.getenv("ATR_STOP_MULT", "1.8")),
             tp1_r=float(os.getenv("TP1_R", "1.5")),
@@ -159,6 +161,12 @@ class BotConfig:
 
         if self.starting_capital_usdt <= 0:
             raise ValueError("STARTING_CAPITAL_USDT must be positive.")
+
+        if self.mean_reversion_adx_max <= 0:
+            raise ValueError("MEAN_REVERSION_ADX_MAX must be positive.")
+
+        if self.mean_reversion_adx_max <= self.adx_min:
+            raise ValueError("MEAN_REVERSION_ADX_MAX should be greater than ADX_MIN.")
 
         if self.ai_score_threshold < 0 or self.ai_score_threshold > 1:
             raise ValueError("AI_SCORE_THRESHOLD must be in [0, 1].")
